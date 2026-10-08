@@ -1,0 +1,54 @@
+name: Release to Play Store (Free)
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set version
+      id: version
+      run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+    - name: set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: 21
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+    - name: Prepare Android keystore
+      run: echo ${{ secrets.ENCODEDKEYSTORE }} | base64 --decode > app/keystore.jks
+    - name: Prepare Google Services
+      run: echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+      env:
+        GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+    - name: Build release AAB
+      run: ./gradlew bundlePlayStoreAdsRelease --build-cache
+      env:
+        APPID: de.szalkowski.activitylauncher
+        KEYSTORE: keystore.jks
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTOREPASSWORD }}
+        KEY_ALIAS: de.szalkowski.activitylauncher
+        KEY_PASSWORD: ${{ secrets.KEYPASSWORD }}
+        PUBLISHER_ID: ${{ secrets.PUBLISHER_ID }}
+        APP_ID: ${{ secrets.APP_ID }}
+        ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+        AD_REVIEW_KEY: ${{ secrets.AD_REVIEW_KEY }}
+    - name: Upload Android Release to Play Store
+      uses: r0adkll/upload-google-play@v1
+      with:
+        serviceAccountJsonPlainText: ${{ secrets.SERVICEACCOUNT }}
+        packageName: de.szalkowski.activitylauncher
+        releaseFiles: app/build/outputs/bundle/playStoreAdsRelease/app-playStore-ads-release.aab
+        releaseName: ${{ steps.version.outputs.tag }}
+        track: alpha
+        inAppUpdatePriority: 0
+        status: completed
+        whatsNewDirectory: whatsnew
+        mappingFile: app/build/outputs/mapping/playStoreAdsRelease/mapping.txt
